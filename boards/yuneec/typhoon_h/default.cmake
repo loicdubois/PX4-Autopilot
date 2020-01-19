@@ -21,8 +21,8 @@ px4_add_board(
 		rc_input
 		tap_esc
 		#telemetry # all available telemetry drivers
-		test_ppm
 		typhoon_bind
+		#typhoon_ldg
 		st16_telemetry
 
 	MODULES
@@ -41,7 +41,6 @@ px4_add_board(
 		mc_pos_control
 		navigator
 		sensors
-		sih
 		vmount
 		battery_status
 
@@ -51,7 +50,7 @@ px4_add_board(
 		hardfault_log
 		#led_control
 		mixer
-		motor_test
+		#motor_test
 		nshterm
 		param
 		perf
@@ -60,8 +59,6 @@ px4_add_board(
 		#tests # tests and test runner
 		top
 		topic_listener
-		tune_control
-		#usb_connected
 		ver
 
 	EXAMPLES

@@ -143,6 +143,32 @@
 
 #define BOARD_TAP_ESC_MODE 1
 
+/*
+ *  Define the ability to shut off off the sensor signals
+ *  by changing the signals to inputs
+ */
+
+#define _PIN_OFF(def) (((def) & (GPIO_PORT_MASK | GPIO_PIN_MASK)) | (GPIO_INPUT|GPIO_PULLDOWN|GPIO_SPEED_2MHz))
+
+/*
+ * Define the Chip Selects for SPI2
+ *
+ * SD Card: PB12
+ *
+ */
+
+#define GPIO_SPI_CS_SDCARD         (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|GPIO_OUTPUT_SET|GPIO_PORTB|GPIO_PIN12)
+
+/* SPI 2 bus off */
+#define GPIO_SPI2_SCK_OFF            _PIN_OFF(GPIO_SPI2_SCK)
+#define GPIO_SPI2_MISO_OFF           _PIN_OFF(GPIO_SPI2_MISO)
+#define GPIO_SPI2_MOSI_OFF           _PIN_OFF(GPIO_SPI2_MOSI)
+/* SPI 2 CS's  off */
+
+#define GPIO_SPI2_CS_SDCARD_OFF         _PIN_OFF(GPIO_SPI_CS_SDCARD)
+
+
+
 #define MEMORY_CONSTRAINED_SYSTEM
 
 /* PWM */
@@ -151,9 +177,7 @@
 #define DIRECT_INPUT_TIMER_CHANNELS  0
 #define BOARD_HAS_PWM    DIRECT_PWM_OUTPUT_CHANNELS
 
-//Landing gear PWM
-#define GPIO_TIM3_CH4OUT        GPIO_TIM3_CH4OUT_1
-#define GPIO_TIM3_CH4IN        GPIO_TIM3_CH4IN_1
+#define LDG_PIN      (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|GPIO_OUTPUT_SET|GPIO_PORTB|GPIO_PIN1)
 
 //Gimbal tilt PWM
 #define GPIO_TIM2_CH3OUT        GPIO_TIM2_CH3OUT_1

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2018 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2018 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,48 +31,65 @@
  *
  ****************************************************************************/
 
-/*
- * @file timer_config.c
- *
- * Configuration data for the stm32 pwm_servo, input capture and pwm input driver.
- *
- * Note that these arrays must always be fully-sized.
- */
+#pragma once
 
-#include <stdint.h>
+#include <px4_module.h>
+#include <px4_module_params.h>
+#include <px4_config.h>
+#include <px4_getopt.h>
+#include <uORB/Subscription.hpp>
+#include <uORB/topics/parameter_update.h>
+#include <unistd.h>
 
-#include <stm32.h>
-#include <stm32_gpio.h>
-#include <stm32_tim.h>
+#include <drivers/drv_hrt.h>
 
-#include <drivers/drv_pwm_output.h>
-#include <px4_arch/io_timer.h>
+extern "C" __EXPORT int typhoon_ldg_main(int argc, char *argv[]);
 
-#include "board_config.h"
+class Typhoon_ldg : public ModuleBase<Typhoon_ldg>, public ModuleParams
+{
+public:
+	Typhoon_ldg();
 
-__EXPORT const io_timers_t io_timers[MAX_IO_TIMERS] = {
-	//Gimbal tilt PWM
-	{
-		.base = STM32_TIM2_BASE,
-		.clock_register = STM32_RCC_APB1ENR,
-		.clock_bit = RCC_APB1ENR_TIM2EN,
-		.clock_freq = STM32_APB1_TIM2_CLKIN,
-		.first_channel_index = 0,
-		.last_channel_index = 0,
-		.handler = io_timer_handler1,
-		.vectorno =  STM32_IRQ_TIM2
-	}
-};
+	/** @see ModuleBase */
+	static int task_spawn(int argc, char *argv[]);
 
+	/** @see ModuleBase */
+	static Typhoon_ldg *instantiate(int argc, char *argv[]);
 
-__EXPORT const timer_io_channels_t timer_io_channels[MAX_TIMER_IO_CHANNELS] = {
-	//Gimbal tilt PWM
-	{
-		.gpio_out = GPIO_TIM2_CH3OUT,
-		.gpio_in = GPIO_TIM2_CH3IN,
-		.timer_index = 0,
-		.timer_channel = 3,
-		.ccr_offset = STM32_GTIM_CCR3_OFFSET,
-		.masks  = GTIM_SR_CC3IF | GTIM_SR_CC3OF
-	}
+	/** @see ModuleBase */
+	static int custom_command(int argc, char *argv[]);
+
+	/** @see ModuleBase */
+	static int print_usage(const char *reason = nullptr);
+
+	/** @see ModuleBase::run() */
+	void run() override;
+
+	static void BitBang(void *arg);
+
+	void Bang();
+
+	/** @see ModuleBase::print_status() */
+	int print_status() override;
+
+private:
+
+	/**
+	 * Check for parameter changes and update them if needed.
+	 * @param parameter_update_sub uorb subscription to parameter_update
+	 * @param force for a parameter update
+	 */
+	void parameters_update(bool force = false);
+	struct hrt_call		_call;
+	unsigned 		_call_times;
+	unsigned 		_pwm_pulse;
+	unsigned		_task_running;
+	DEFINE_PARAMETERS(
+		(ParamInt<px4::params::SYS_AUTOSTART>) _param_sys_autostart,   /**< example parameter */
+		(ParamInt<px4::params::SYS_AUTOCONFIG>) _param_sys_autoconfig  /**< another parameter */
+	)
+
+	// Subscriptions
+	uORB::Subscription	_parameter_update_sub{ORB_ID(parameter_update)};
+
 };

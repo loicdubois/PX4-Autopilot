@@ -158,7 +158,11 @@ stm32_boardinitialize(void)
 	stm32_configgpio(GPIO_POWERLATCH);
 	stm32_configgpio(GPIO_HEATER);
 	stm32_configgpio(GPIO_RX_ON);
-	//stm32_configgpio(GCO3PWM);
+
+	stm32_configgpio(GPIO_SPI_CS_SDCARD);
+	stm32_configgpio(LDG_PIN);
+
+	//stm32_spiinitialize();
 }
 
 /****************************************************************************
@@ -186,6 +190,7 @@ stm32_boardinitialize(void)
  *
  ****************************************************************************/
 
+//static struct spi_dev_s *spi2;
 
 __EXPORT int board_app_initialize(uintptr_t arg)
 {
@@ -220,33 +225,64 @@ __EXPORT int board_app_initialize(uintptr_t arg)
 
 
 
-#if defined(FLASH_BASED_PARAMS)
-	static sector_descriptor_t params_sector_map[] = {
-		{1, 16 * 1024, 0x08004000},
-		{0, 0, 0},
-	};
 
 
-	/* Initialize the flashfs layer to use heap allocated memory */
 
-	int result = parameter_flashfs_init(params_sector_map, NULL, 0);
+	#if defined(FLASH_BASED_PARAMS)
+		static sector_descriptor_t params_sector_map[] = {
+			{1, 16 * 1024, 0x08004000},
+			{0, 0, 0},
+		};
+
+
+		/* Initialize the flashfs layer to use heap allocated memory */
+
+		int result = parameter_flashfs_init(params_sector_map, NULL, 0);
+
+		if (result != OK) {
+			syslog(LOG_ERR, "[boot] FAILED to init params in FLASH %d\n", result);
+			stm32_gpiowrite(GPIO_LED_RED, true);
+			return -ENODEV;
+		}
+
+	#endif
+
+
+	stm32_gpiowrite(GPIO_LED_RED, false);
+	stm32_gpiowrite(GPIO_LED_GREEN, false);
+	stm32_gpiowrite(GPIO_LED_BLUE, false);
+
+	stm32_gpiowrite(GPIO_POWERLATCH, true);
+	stm32_gpiowrite(GPIO_HEATER, true);
+	stm32_gpiowrite(GPIO_RX_ON, false);
+	stm32_gpiowrite(LDG_PIN, false);
+
+
+
+
+	// SPI2: SDCard
+	/* Get the SPI port for the microSD slot */
+	/*
+	spi2 = stm32_spibus_initialize(CONFIG_NSH_MMCSDSPIPORTNO);
+
+	if (!spi2) {
+		syslog(LOG_ERR, "[boot] FAILED to initialize SPI port %d\n", CONFIG_NSH_MMCSDSPIPORTNO);
+		stm32_gpiowrite(GPIO_LED_GREEN, true);
+		return -ENODEV;
+	}*/
+
+	/* Now bind the SPI interface to the MMCSD driver */
+	/*
+	result = mmcsd_spislotinitialize(CONFIG_NSH_MMCSDMINOR, CONFIG_NSH_MMCSDSLOTNO, spi2);
 
 	if (result != OK) {
-		syslog(LOG_ERR, "[boot] FAILED to init params in FLASH %d\n", result);
 		stm32_gpiowrite(GPIO_LED_RED, true);
+		syslog(LOG_ERR, "[boot] FAILED to bind SPI port 2 to the MMCSD driver\n");
 		return -ENODEV;
 	}
 
-#endif
-
-stm32_gpiowrite(GPIO_POWERLATCH, true);
-stm32_gpiowrite(GPIO_HEATER, true);
-stm32_gpiowrite(GPIO_RX_ON, false);
-//stm32_gpiowrite(GCO3PWM, false);
-
-stm32_gpiowrite(GPIO_LED_RED, false);
-stm32_gpiowrite(GPIO_LED_GREEN, false);
-stm32_gpiowrite(GPIO_LED_BLUE, true);
+	up_udelay(20);*/
+	stm32_gpiowrite(GPIO_LED_BLUE, true);
 
 	return OK;
 }
