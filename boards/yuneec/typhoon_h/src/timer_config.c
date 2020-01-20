@@ -52,14 +52,14 @@
 
 __EXPORT const io_timers_t io_timers[MAX_IO_TIMERS] = {
 	{
-		.base = STM32_TIM3_BASE,
+		/*.base = STM32_TIM3_BASE,
 		.clock_register = STM32_RCC_APB1ENR,
 		.clock_bit = RCC_APB1ENR_TIM3EN,
 		.clock_freq = STM32_APB1_TIM3_CLKIN,
 		.first_channel_index = 0,
 		.last_channel_index = 0,
 		.handler = io_timer_handler0,
-		.vectorno =  STM32_IRQ_TIM3
+		.vectorno =  STM32_IRQ_TIM3*/
 	}
 	,
 	{
@@ -79,12 +79,12 @@ __EXPORT const timer_io_channels_t timer_io_channels[MAX_TIMER_IO_CHANNELS] = {
 
 	//Landing gear PWM
 	{
-		.gpio_out = GPIO_TIM3_CH3OUT,
+		/*.gpio_out = GPIO_TIM3_CH3OUT,
 		.gpio_in = GPIO_TIM3_CH3IN,
 		.timer_index = 0,
 		.timer_channel = 3,
 		.ccr_offset = STM32_GTIM_CCR4_OFFSET,
-		.masks  = GTIM_SR_CC4IF | GTIM_SR_CC4OF
+		.masks  = GTIM_SR_CC4IF | GTIM_SR_CC4OF*/
 	}
 	,
 	//Gimbal tilt PWM
