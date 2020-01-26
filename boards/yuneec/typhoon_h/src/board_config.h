@@ -77,10 +77,6 @@
 #define GPIO_LED_GREEN       (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|GPIO_OUTPUT_SET|GPIO_PORTA|GPIO_PIN7)
 //PB0 = blue
 #define GPIO_LED_BLUE       (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|GPIO_OUTPUT_SET|GPIO_PORTB|GPIO_PIN0)
-/*
-#define GPIO_LED_RED   GPIO_LED1
-#define GPIO_LED_GREEN   GPIO_LED2
-#define GPIO_LED_BLUE   GPIO_LED3*/
 
 //Power on
 #define GPIO_POWERLATCH (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_50MHz|GPIO_OUTPUT_CLEAR|GPIO_PORTA|GPIO_PIN4)
@@ -121,9 +117,6 @@
  */
 #define BOARD_BATTERY1_V_DIV         (11.12f)
 #define BOARD_BATTERY1_A_PER_V       (31.f)
-
-/*pb1*/
-//#define GPIO_LED4       (GPIO_INPUT|GPIO_SPEED_50MHz|GPIO_PORTB|GPIO_PIN1) //STILL 4.5 AFTER TURNING THIS TO INPUT, WHAT AFTER THIS
 
 /* USB OTG FS*/
 #define GPIO_OTGFS_VBUS		(GPIO_INPUT|GPIO_FLOAT|GPIO_SPEED_100MHz|GPIO_OPENDRAIN|GPIO_PORTC|GPIO_PIN5)
@@ -167,8 +160,6 @@
 
 #define GPIO_SPI2_CS_SDCARD_OFF         _PIN_OFF(GPIO_SPI_CS_SDCARD)
 
-
-
 #define MEMORY_CONSTRAINED_SYSTEM
 
 /* PWM */
@@ -188,7 +179,6 @@
 #define HRT_TIMER_CHANNEL            1 // use capture/compare channel 1
 
 #define RC_SERIAL_PORT               "/dev/ttyS0"
-
 
 /* This board provides a DMA pool and APIs */
 #define BOARD_DMA_ALLOC_POOL_SIZE    5120
@@ -213,8 +203,6 @@ __BEGIN_DECLS
 /****************************************************************************************************
  * Public Functions
  ****************************************************************************************************/
-
-
 
 extern void stm32_spiinitialize(void);
 void board_spi_reset(int ms);
