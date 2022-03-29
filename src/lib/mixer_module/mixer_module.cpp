@@ -508,6 +508,7 @@ MixingOutput::reorderOutputs(uint16_t values[MAX_ACTUATORS])
 	 *    ^
 	 * 2     4
 	 */
+	values[4] = values[3];
 }
 
 int MixingOutput::reorderedMotorIndex(int index) const
@@ -521,6 +522,10 @@ int MixingOutput::reorderedMotorIndex(int index) const
 		case 2: return 3;
 
 		case 3: return 0;
+		}
+	} else {
+		if (index == 3) {
+			return 4;
 		}
 	}
 
