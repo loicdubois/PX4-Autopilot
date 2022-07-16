@@ -3,5 +3,8 @@
 # Typhoon H specific board extras init
 #------------------------------------------------------------------------------
 
-st16_telemetry start
+typhoon_led start
+
+#Sleep required for landing gear driver startup
+usleep 3000000
 typhoon_ldg start

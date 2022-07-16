@@ -55,11 +55,6 @@
 #include <uORB/topics/input_rc.h>
 #include <uORB/topics/vehicle_command.h>
 
-#include "crsf_telemetry.h"
-
-#ifdef HRT_PPM_CHANNEL
-# include <systemlib/ppm_decode.h>
-#endif
 
 class RCInput : public ModuleBase<RCInput>
 {
@@ -93,24 +88,187 @@ public:
 
 	int	init();
 
-private:
-	enum RC_SCAN {
-		RC_SCAN_PPM = 0,
-		RC_SCAN_SBUS,
-		RC_SCAN_DSM,
-		RC_SCAN_SUMD,
-		RC_SCAN_ST24,
-		RC_SCAN_CRSF
-	} _rc_scan_state{RC_SCAN_SBUS};
+	/**
+	 *  Sends a packet to UART
+	 *  @param uart_fd file-descriptor of UART device
+	 */
+	int send_packet(int uart_fd);
 
-	static constexpr char const *RC_SCAN_STRING[6] {
-		"PPM",
-		"SBUS",
-		"DSM",
-		"SUMD",
-		"ST24",
-		"CRSF"
-	};
+	void uorb_deinit();
+	bool uorb_init();
+	void uorb_update_topics();
+
+	int port_number;
+	int counter;
+	uint8_t gps_status;
+
+
+	//Alignment/padding
+	#pragma pack(push, 1)
+
+	typedef struct {
+		uint8_t length;       ///< length includes type, data, and crc = sizeof(type)+sizeof(data[payload_len])+sizeof(crc8)
+		uint8_t type;       ///< from enum ST24_PACKET_TYPE
+		uint16_t t;     ///< packet counter or clock
+		int32_t lat;      ///< latitude (degrees)  +/- 90 deg
+		int32_t lon;      ///< longitude (degrees)  +/- 180 deg
+		int32_t alt;      ///< 0.01m resolution, altitude (meters)
+		int16_t vx, vy, vz;     ///< velocity 0.01m res, +/-320.00 North-East- Down
+
+		uint8_t nsat;     ///< Sum of GPS status and number of satellites.
+		//GPS status is bit 8 of the byte. Number of satellites is defined using the first 5 bits.
+		//0b10011111 = GPS Ready, 31 satellites.
+  		//0b00011111 = GPS Acguiring, 31 satellites.
+
+		uint8_t voltage;    ///< 25.4V  voltage = 5 + 255*0.1 = 30.5V, min=5V
+		uint8_t current;    ///< 0.5A resolution
+		int16_t roll, pitch, yaw; ///< 0.01 degree resolution
+		uint8_t motorStatus;    ///< 1 bit per motor for status 1=good, 0= fail
+
+		uint8_t gpsStatus;    ///< gps and obs status
+		/* Example: 0x61
+		* 0x[X]Y
+		* 0001 yyyy = gps disabled, obs rdy
+		* 0010 yyyy = gps acquiring, obs disabled
+		* 0100 yyyy = gps disabled, obs disabled
+		* 1000 yyyy = gps disabled, obs disabled
+		*
+		* 0xX[Y]
+		* xxxx 0001 = none
+		* xxxx 0010 = none
+		* xxxx 0100 = none
+		* xxxx 1000 = none
+		*/
+
+		uint8_t obsStatus; ///< obs_avoidance | unknown
+		/* Example: 0x55
+		* 0x[X]Y
+		* 0001 yyyy = obs avoidance fail
+		* 0010 yyyy = obs avoidance fail
+		* 0100 yyyy = obs avoidance disabled
+		* 1000 yyyy = obs avoidance fail
+		*
+		* 0xX[Y]
+		* xxxx 0001 = none
+		* xxxx 0010 = none
+		* xxxx 0100 = none
+		* xxxx 1000 = none
+		*/
+
+		uint8_t flightmode;
+		uint8_t optionbytes; ///< drone model | flight mode
+		/* Example: 0x0510
+		*
+		* 0x00XY (Bytes 0-1)
+		*
+		* 0x[X]Y
+		* 0001 yyyy = READY
+		* 0010 yyyy = IPS
+		* 0100 yyyy = "N/A"
+		* 1000 yyyy = THR
+		*
+		* 0x1[Y]
+		* 0001 1000 = WATCH
+		* 0001 0100 = RATE
+		* 0001 0010 = MAG CALI
+		* 0001 0001 = NO RC
+		*
+		*0xXY00 (Bytes 2-3)
+		*
+		* 0x[X]Y
+		* 0001 yyyy = nothing
+		* 0010 yyyy = nothing
+		* 0100 yyyy = nothing
+		* 1000 yyyy = nothing
+		*
+		* 0xX[Y]
+		* //xxxx 0001 = BATT RED, drone model: hex
+		* //xxxx 0010 = BATT FULL, drone model: quad
+		* //xxxx 0100 = BATT RED, drone model: hex
+		* //xxxx 1000 = BATT RED, drone model: hex
+		* 0x03xx = drone model: quad, batt red
+		* 0x05xx = drone model: hex, batt ok <---- Typhoon H (captured)
+		* 0x06xx = drone model: hex, batt red
+		* 0x07xx = drone model: hex, batt ok <---- ?
+		*/
+
+
+		/* Provided by h-elsner
+		f_mode (decimal)	Meaning	​				Display​
+		0			Stability mode (Blue solid)		THR​
+		1			Blue flashing - GPS off​		THR​
+		2​			Blue - GPS lost				THR​
+		3​			Angle mode (Purple solid)​		Angle​
+		4​			Purple flashing - GPS off​		Angle​
+		5​			Angle mode (Purple solid)-GPS lost​	Angle​
+		6​			Smart mode​				Smart​
+		7​			Smart mode - GPS lost​			Angle​
+		8​			Motor starting​				Start​
+		9​			Temperature calibration​		Temp​
+		10​			Pressure calibration​			Pre Cali​
+		11​			Accelerator calibration​		Acc Cali​
+		12​			Emergency/Killed​			EMER​
+		13​			RTH coming​				Home​
+		14​			RTH landing​				Land​
+		15​			Binding​				Bind​
+		16​			Initializing, Ready to start​		Ready​
+		17​			Waiting for RC​				No RC​
+		18​			Magnetometer calibration​		Mag Cali​
+		19​			Unknown mode​​
+		20​			Agility mode (Rate)​			Rate​
+		21​			Smart mode - Follow me​			Follow​
+		22​			Smart mode - Follow me - GPS lost​	THR​
+		23​			Smart mode - Camera tracking​		Watch​
+		24​			Camera tracking - GPS lost​		THR​
+		26​			Task Curve Cable Cam​			CCC​
+		27​			Task Journey​				JOUR​
+		28​			Task Point of Interest​			POI​
+		29​			Task Orbit​				ORBIT​
+		32​			Indoor Positioning System​		IPS​
+		33​			Waypoints​				WAYPOINT​
+		*/
+
+		uint16_t alarmbytes; ///< unknown | alarms
+		/* Example: 0x5820
+		*
+		* 0x00XY (Bytes 0-1)
+		*
+		* 0x[X]Y
+		* 0001 yyyy = imu temperature warning
+		* 0010 yyyy = compass warning (captured, uncalibrated compass attached)
+		* 0100 yyyy = ?
+		* 1000 yyyy = no fly zone warning
+		*
+		* 0xX[Y]
+		* xxxx 0001 = battery voltage low
+		* xxxx 0010 = battery voltage critically low
+		* xxxx 0100 = imu temperature warning (again?)
+		* xxxx 1000 = ?
+		*
+		* 0xXY00 (Bytes 2-3)
+		*
+		* 0001 yyyy = ?
+		* 0010 yyyy = ?
+		* 0100 yyyy = ?
+		* 1000 yyyy = ?
+		*
+		* xxxx 0001 = ?
+		* xxxx 0010 = ?
+		* xxxx 0100 = ?
+		* xxxx 1000 = ?
+		*/
+	} telemPayload;
+
+	typedef struct {
+		uint8_t header1;      ///< 0x55 for a valid packet
+		uint8_t header2;      ///< 0x55 for a valid packet
+		telemPayload payload;
+		uint8_t crc8;       ///< crc8 checksum, calculated by st24_common_crc8 and including fields length, type and st24_data
+	} telemData;
+
+	#pragma pack(pop)
+
+private:
 
 	hrt_abstime _rc_scan_begin{0};
 
@@ -141,8 +299,6 @@ private:
 	uint16_t _raw_rc_values[input_rc_s::RC_INPUT_MAX_CHANNELS] {};
 	uint16_t _raw_rc_count{};
 
-	CRSFTelemetry *_crsf_telemetry{nullptr};
-
 	perf_counter_t      _cycle_perf;
 	perf_counter_t      _publish_interval_perf;
 
@@ -154,8 +310,6 @@ private:
 			uint16_t raw_rc_values_local[input_rc_s::RC_INPUT_MAX_CHANNELS],
 			hrt_abstime now, bool frame_drop, bool failsafe,
 			unsigned frame_drops, int rssi);
-
-	void set_rc_scan_state(RC_SCAN _rc_scan_state);
 
 	void rc_io_invert(bool invert);
 

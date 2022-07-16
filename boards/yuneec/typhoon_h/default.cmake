@@ -23,7 +23,7 @@ px4_add_board(
 		#telemetry # all available telemetry drivers
 		typhoon_bind
 		typhoon_ldg
-		st16_telemetry
+		typhoon_led
 
 	MODULES
 		attitude_estimator_q

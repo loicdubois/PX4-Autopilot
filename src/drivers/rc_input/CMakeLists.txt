@@ -36,7 +36,6 @@ px4_add_module(
 	COMPILE_FLAGS
 	SRCS
 		RCInput.cpp
-		crsf_telemetry.cpp
 	MODULE_CONFIG
 		module.yaml
 	DEPENDS
