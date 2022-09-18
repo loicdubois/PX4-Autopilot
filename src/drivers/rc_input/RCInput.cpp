@@ -211,7 +211,7 @@ int RCInput::send_packet(int uart_fd)
 		telemetryPayload.obsStatus = 0x55;
 		telemetryPayload.optionbytes = 0x05;
 		telemetryPayload.alarmbytes = 0x00;
-		telemetryPayload.gps_acc = 0x00;
+		telemetryPayload.gps_acc = 0x00;       // from gps.eph to u_int8_t [0..200]
 		telemetryData.header1 =  0x55; //Header 1
 		telemetryData.header2 =  0x55; //Header 2
 		telemetryData.payload = telemetryPayload;
