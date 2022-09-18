@@ -228,34 +228,27 @@ public:
 		33​			Waypoints​				WAYPOINT​
 		*/
 
-		uint16_t alarmbytes; ///< unknown | alarms
-		/* Example: 0x5820
+		uint8_t alarmbytes;     ///< Error flags
+		/* Example: 0x21   Voltage warning 1 - voltage low + compass warning
 		*
-		* 0x00XY (Bytes 0-1)
+		* 0xXY
 		*
 		* 0x[X]Y
 		* 0001 yyyy = imu temperature warning
 		* 0010 yyyy = compass warning (captured, uncalibrated compass attached)
-		* 0100 yyyy = ?
+		* 0100 yyyy = Fly-away checker warning (never used)
 		* 1000 yyyy = no fly zone warning
 		*
 		* 0xX[Y]
 		* xxxx 0001 = battery voltage low
 		* xxxx 0010 = battery voltage critically low
-		* xxxx 0100 = imu temperature warning (again?)
-		* xxxx 1000 = ?
-		*
-		* 0xXY00 (Bytes 2-3)
-		*
-		* 0001 yyyy = ?
-		* 0010 yyyy = ?
-		* 0100 yyyy = ?
-		* 1000 yyyy = ?
-		*
-		* xxxx 0001 = ?
-		* xxxx 0010 = ?
-		* xxxx 0100 = ?
-		* xxxx 1000 = ?
+		* xxxx 0100 = motor failsafe mode  (five rotor mode)
+		* xxxx 1000 = complete motor ESC failure
+		*/
+		
+		uint8_t gps_acc;    ///<  GPSacc_H   GPS Horizontal accracy * 20
+		/*
+		* maximum 200 for no GPS fix
 		*/
 	} telemPayload;
 
