@@ -31,13 +31,11 @@
 #
 ############################################################################
 px4_add_module(
-	MODULE drivers__rc_input
-	MAIN rc_input
+	MODULE drivers__typhoon_led
+	MAIN typhoon_led
 	COMPILE_FLAGS
 	SRCS
-		RCInput.cpp
-	MODULE_CONFIG
-		module.yaml
+		typhoon_led.cpp
 	DEPENDS
-		rc
 	)
+

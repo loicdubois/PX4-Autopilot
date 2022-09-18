@@ -82,20 +82,6 @@
 /****************************************************************************
  * Pre-Processor Definitions
  ****************************************************************************/
-
-/*
- * Ideally we'd be able to get these from up_internal.h,
- * but since we want to be able to disable the NuttX use
- * of leds for system indication at will and there is no
- * separate switch, we need to build independent of the
- * CONFIG_ARCH_LEDS configuration switch.
- */
-__BEGIN_DECLS
-extern void led_init(void);
-extern void led_on(int led);
-extern void led_off(int led);
-__END_DECLS
-
 /****************************************************************************
  * Protected Functions
  ****************************************************************************/
@@ -158,7 +144,11 @@ stm32_boardinitialize(void)
 	stm32_configgpio(GPIO_POWERLATCH);
 	stm32_configgpio(GPIO_HEATER);
 	stm32_configgpio(GPIO_RX_ON);
-	//stm32_configgpio(GCO3PWM);
+
+	stm32_configgpio(GPIO_SPI_CS_SDCARD);
+	stm32_configgpio(LDG_PIN);
+
+	stm32_spiinitialize();
 }
 
 /****************************************************************************
@@ -186,13 +176,13 @@ stm32_boardinitialize(void)
  *
  ****************************************************************************/
 
+static struct spi_dev_s *spi2;
 
 __EXPORT int board_app_initialize(uintptr_t arg)
 {
 	px4_platform_init();
 
 	/* configure the DMA allocator */
-
 	if (board_dma_alloc_init() < 0) {
 		syslog(LOG_ERR, "DMA alloc FAILED\n");
 	}
@@ -214,39 +204,55 @@ __EXPORT int board_app_initialize(uintptr_t arg)
 		       (hrt_callout)stm32_serial_dma_poll,
 		       NULL);
 
-	/* initial LED state */
-	//drv_led_start();
-	//led_off(LED_BLUE);
+	#if defined(FLASH_BASED_PARAMS)
+		static sector_descriptor_t params_sector_map[] = {
+			{1, 16 * 1024, 0x08004000},
+			{0, 0, 0},
+		};
 
 
+		/* Initialize the flashfs layer to use heap allocated memory */
 
-#if defined(FLASH_BASED_PARAMS)
-	static sector_descriptor_t params_sector_map[] = {
-		{1, 16 * 1024, 0x08004000},
-		{0, 0, 0},
-	};
+		int result = parameter_flashfs_init(params_sector_map, NULL, 0);
 
+		if (result != OK) {
+			syslog(LOG_ERR, "[boot] FAILED to init params in FLASH %d\n", result);
+			stm32_gpiowrite(GPIO_LED_RED, true);
+			return -ENODEV;
+		}
 
-	/* Initialize the flashfs layer to use heap allocated memory */
+	#endif
 
-	int result = parameter_flashfs_init(params_sector_map, NULL, 0);
+	stm32_gpiowrite(GPIO_LED_RED, false);
+	stm32_gpiowrite(GPIO_LED_GREEN, false);
+	stm32_gpiowrite(GPIO_LED_BLUE, false);
 
-	if (result != OK) {
-		syslog(LOG_ERR, "[boot] FAILED to init params in FLASH %d\n", result);
-		stm32_gpiowrite(GPIO_LED_RED, true);
+	stm32_gpiowrite(GPIO_POWERLATCH, true);
+	stm32_gpiowrite(GPIO_HEATER, true);
+	stm32_gpiowrite(GPIO_RX_ON, false);
+	stm32_gpiowrite(LDG_PIN, false);
+
+	// SPI2: SDCard
+	/* Get the SPI port for the microSD slot */
+	spi2 = stm32_spibus_initialize(CONFIG_NSH_MMCSDSPIPORTNO);
+
+	if (!spi2) {
+		syslog(LOG_ERR, "[boot] FAILED to initialize SPI port %d\n", CONFIG_NSH_MMCSDSPIPORTNO);
+		stm32_gpiowrite(GPIO_LED_GREEN, true);
 		return -ENODEV;
 	}
 
-#endif
+	/* Now bind the SPI interface to the MMCSD driver */
+	result = mmcsd_spislotinitialize(CONFIG_NSH_MMCSDMINOR, CONFIG_NSH_MMCSDSLOTNO, spi2);
 
-stm32_gpiowrite(GPIO_POWERLATCH, true);
-stm32_gpiowrite(GPIO_HEATER, true);
-stm32_gpiowrite(GPIO_RX_ON, false);
-//stm32_gpiowrite(GCO3PWM, false);
+	if (result != OK) {
+		stm32_gpiowrite(GPIO_LED_RED, true);
+		syslog(LOG_ERR, "[boot] FAILED to bind SPI port 2 to the MMCSD driver\n");
+		return -ENODEV;
+	}
 
-stm32_gpiowrite(GPIO_LED_RED, false);
-stm32_gpiowrite(GPIO_LED_GREEN, false);
-stm32_gpiowrite(GPIO_LED_BLUE, true);
+	up_udelay(20);
+	stm32_gpiowrite(GPIO_LED_BLUE, true);
 
 	return OK;
 }

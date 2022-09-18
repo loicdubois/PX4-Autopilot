@@ -85,7 +85,29 @@
         "githubPullRequests.telemetry.enabled": false,
         "gitlens.advanced.telemetry.enabled": false,
         "files.associations": {
-                "*.jinja": "jinja"
+                "*.jinja": "jinja",
+                "*.desc": "cpp",
+                "*.ipp": "cpp",
+                "*.tcc": "cpp",
+                "bitset": "cpp",
+                "chrono": "cpp",
+                "complex": "cpp",
+                "string": "cpp",
+                "exception": "cpp",
+                "cmath": "cpp",
+                "functional": "cpp",
+                "fstream": "cpp",
+                "future": "cpp",
+                "iostream": "cpp",
+                "istream": "cpp",
+                "mutex": "cpp",
+                "new": "cpp",
+                "ostream": "cpp",
+                "ratio": "cpp",
+                "sstream": "cpp",
+                "tuple": "cpp",
+                "typeinfo": "cpp",
+                "core": "cpp"
         },
         "search.exclude": {
                 "build/**": true

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2018 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2018 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,69 +31,54 @@
  *
  ****************************************************************************/
 
-/*
- * @file timer_config.c
- *
- * Configuration data for the stm32 pwm_servo, input capture and pwm input driver.
- *
- * Note that these arrays must always be fully-sized.
- */
+#pragma once
 
-#include <stdint.h>
+#include <px4_module.h>
+#include <px4_module_params.h>
+#include <px4_config.h>
+#include <px4_getopt.h>
+#include <uORB/Subscription.hpp>
+#include <uORB/topics/parameter_update.h>
+#include <unistd.h>
 
-#include <stm32.h>
-#include <stm32_gpio.h>
-#include <stm32_tim.h>
+#include <drivers/drv_hrt.h>
 
-#include <drivers/drv_pwm_output.h>
-#include <px4_arch/io_timer.h>
-
-#include "board_config.h"
-
-__EXPORT const io_timers_t io_timers[MAX_IO_TIMERS] = {
-	{
-		/*.base = STM32_TIM3_BASE,
-		.clock_register = STM32_RCC_APB1ENR,
-		.clock_bit = RCC_APB1ENR_TIM3EN,
-		.clock_freq = STM32_APB1_TIM3_CLKIN,
-		.first_channel_index = 0,
-		.last_channel_index = 0,
-		.handler = io_timer_handler0,
-		.vectorno =  STM32_IRQ_TIM3*/
-	}
-	,
-	{
-		.base = STM32_TIM2_BASE,
-		.clock_register = STM32_RCC_APB1ENR,
-		.clock_bit = RCC_APB1ENR_TIM2EN,
-		.clock_freq = STM32_APB1_TIM2_CLKIN,
-		.first_channel_index = 1,
-		.last_channel_index = 1,
-		.handler = io_timer_handler1,
-		.vectorno =  STM32_IRQ_TIM2
-	}
-};
+extern "C" __EXPORT int typhoon_led_main(int argc, char *argv[]);
 
 
-__EXPORT const timer_io_channels_t timer_io_channels[MAX_TIMER_IO_CHANNELS] = {
 
-	//Landing gear PWM
-	{
-		/*.gpio_out = GPIO_TIM3_CH3OUT,
-		.gpio_in = GPIO_TIM3_CH3IN,
-		.timer_index = 0,
-		.timer_channel = 3,
-		.ccr_offset = STM32_GTIM_CCR4_OFFSET,
-		.masks  = GTIM_SR_CC4IF | GTIM_SR_CC4OF*/
-	}
-	,
-	//Gimbal tilt PWM
-	{
-		.gpio_out = GPIO_TIM2_CH3OUT,
-		.gpio_in = GPIO_TIM2_CH3IN,
-		.timer_index = 1,
-		.timer_channel = 3,
-		.ccr_offset = STM32_GTIM_CCR3_OFFSET,
-		.masks  = GTIM_SR_CC3IF | GTIM_SR_CC3OF
-	}
+class TYPHOON_led : public ModuleBase<TYPHOON_led>, public ModuleParams
+{
+public:
+	TYPHOON_led(int example_param, bool example_flag);
+
+	virtual ~TYPHOON_led() = default;
+
+	/** @see ModuleBase */
+	static int task_spawn(int argc, char *argv[]);
+
+	/** @see ModuleBase */
+	static TYPHOON_led *instantiate(int argc, char *argv[]);
+
+	/** @see ModuleBase */
+	static int custom_command(int argc, char *argv[]);
+
+	/** @see ModuleBase */
+	static int print_usage(const char *reason = nullptr);
+
+	/** @see ModuleBase::run() */
+	void run() override;
+
+	void uorb_deinit();
+	bool uorb_init();
+	void uorb_update_topics();
+	void led_control();
+	void set_led(int led_mode);
+
+	uint8_t led_status;
+	int led_blink_counter;
+	int led_blink;
+
+	/** @see ModuleBase::print_status() */
+	int print_status() override;
 };

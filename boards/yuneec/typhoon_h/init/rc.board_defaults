@@ -11,8 +11,9 @@ fi
 param set SYS_AUTOSTART 6001
 
 set RC_INPUT_ARGS "-d /dev/ttyS3"
-set DATAMAN_OPT -i
-set LOGGER_ARGS "-m mavlink"
+set DATAMAN_OPT -r
+#set LOGGER_ARGS "-m mavlink"
+set LOGGER_ARGS "-m file"
 
 gps start -d /dev/ttyS0
 tap_esc start -d /dev/ttyS2 -n 6

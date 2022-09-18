@@ -31,11 +31,11 @@
 #
 ############################################################################
 px4_add_module(
-	MODULE drivers__st16_telemetry
-	MAIN st16_telemetry
+	MODULE drivers__typhoon_ldg
+	MAIN typhoon_ldg
 	COMPILE_FLAGS
 	SRCS
-		st16_telemetry.cpp
+		typhoon_ldg.cpp
 	DEPENDS
 	)
 

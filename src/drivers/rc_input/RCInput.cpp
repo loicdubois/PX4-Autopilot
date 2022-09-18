@@ -33,16 +33,204 @@
 
 #include "RCInput.hpp"
 
-#include "crsf_telemetry.h"
+/*Telemetry defines*/
+#include <unistd.h>
+
+#include <uORB/Subscription.hpp>
+#include <uORB/topics/battery_status.h>
+#include <uORB/topics/sensor_combined.h>
+#include <uORB/topics/vehicle_air_data.h>
+#include <uORB/topics/vehicle_global_position.h>
+#include <uORB/topics/satellite_info.h>
+#include <uORB/topics/vehicle_gps_position.h>
+#include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/vehicle_status_flags.h>
+#include <uORB/topics/vehicle_attitude.h>
+#include <math.h>
+#include <matrix/math.hpp>
+using namespace matrix;
+
+#define frac(f) (f - (int)f)
+
+#define NAVIGATION_STATE_MANUAL 0		// Manual mode
+#define NAVIGATION_STATE_ALTCTL 1		// Altitude control mode
+#define NAVIGATION_STATE_POSCTL 2		// Position control mode
+#define NAVIGATION_STATE_AUTO_MISSION 3		// Auto mission mode
+#define NAVIGATION_STATE_AUTO_LOITER 4		// Auto loiter mode
+#define NAVIGATION_STATE_AUTO_RTL 5		// Auto return to launch mode
+#define NAVIGATION_STATE_AUTO_RCRECOVER 6	// RC recover mode
+#define NAVIGATION_STATE_AUTO_RTGS 7		// Auto return to groundstation on data link loss
+#define NAVIGATION_STATE_AUTO_LANDENGFAIL 8 	// Auto land on engine failure
+#define NAVIGATION_STATE_AUTO_LANDGPSFAIL 9	// Auto land on gps failure (e.g. open loop loiter down)
+#define NAVIGATION_STATE_ACRO 10		// Acro mode
+#define NAVIGATION_STATE_UNUSED 11		// Free slot
+#define NAVIGATION_STATE_DESCEND 12		// Descend mode (no position control)
+#define NAVIGATION_STATE_TERMINATION 13		// Termination mode
+#define NAVIGATION_STATE_OFFBOARD 14
+#define NAVIGATION_STATE_STAB 15		// Stabilized mode
+#define NAVIGATION_STATE_RATTITUDE 16		// Rattitude (aka "flip") mode
+#define NAVIGATION_STATE_AUTO_TAKEOFF 17	// Takeoff
+#define NAVIGATION_STATE_AUTO_LAND 18		// Land
+#define NAVIGATION_STATE_AUTO_FOLLOW_TARGET 19	// Auto Follow
+#define NAVIGATION_STATE_AUTO_PRECLAND 20	// Precision land with landing target
+#define NAVIGATION_STATE_ORBIT 21       // Orbit in a circle
+#define NAVIGATION_STATE_MAX 22
+
+#define LED_GREEN 0
+#define LED_GREEN_BLINK 1
+#define LED_BLUE 2
+#define LED_BLUE_BLINK 3
+#define LED_PURPLE 4
+#define LED_PURPLE_BLINK 5
+#define LED_WHITE 6
+#define LED_WHITE_BLINK 7
+#define LED_YELLOW 8
+#define LED_YELLOW_BLINK 9
+#define LED_RED 10
+#define LED_RED_BLINK 11
+#define LED_LIGHTBLUE 12
+#define LED_LIGHTBLUE_BLINK 13
+#define LED_OFF 14
+
+struct uorb_subscription_data_s {
+
+	uORB::SubscriptionData<battery_status_s> battery_status_sub{ORB_ID(battery_status)};
+	uORB::SubscriptionData<sensor_combined_s> sensor_combined_sub{ORB_ID(sensor_combined)};
+	uORB::SubscriptionData<vehicle_air_data_s> vehicle_air_data_sub{ORB_ID(vehicle_air_data)};
+	uORB::SubscriptionData<vehicle_global_position_s> vehicle_global_position_sub{ORB_ID(vehicle_global_position)};
+	uORB::SubscriptionData<vehicle_gps_position_s> vehicle_gps_position_sub{ORB_ID(vehicle_gps_position)};
+	uORB::SubscriptionData<vehicle_status_s> vehicle_status_sub{ORB_ID(vehicle_status)};
+	uORB::SubscriptionData<vehicle_status_flags_s> vehicle_status_flags_sub{ORB_ID(vehicle_status_flags)};
+	uORB::SubscriptionData<vehicle_attitude_s> vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
+};
+static struct uorb_subscription_data_s *subscription_data = nullptr;
+
+/* Initializes and updates the uORB subscriptions. */
+bool RCInput::uorb_init()
+{
+	subscription_data = new uorb_subscription_data_s();
+
+	if (!subscription_data) {
+		return false;
+	}
+
+	return true;
+}
+
+void RCInput::uorb_deinit()
+{
+	if (subscription_data) {
+		delete subscription_data;
+		subscription_data = nullptr;
+	}
+}
+
+void RCInput::uorb_update_topics()
+{
+	subscription_data->battery_status_sub.update();
+	subscription_data->sensor_combined_sub.update();
+	subscription_data->vehicle_air_data_sub.update();
+	subscription_data->vehicle_global_position_sub.update();
+	subscription_data->vehicle_gps_position_sub.update();
+	subscription_data->vehicle_status_sub.update();
+	subscription_data->vehicle_status_flags_sub.update();
+	subscription_data->vehicle_attitude_sub.update();
+}
+
+/* End of UORB functions*/
+
+/* Send telemetry packet */
+int RCInput::send_packet(int uart_fd)
+{
+	RCInput::telemPayload telemetryPayload;
+	RCInput::telemData telemetryData;
+
+	{
+		RCInput::uorb_update_topics();
+		if (counter >= 65535) counter = 0;
+		counter ++;
+
+		const battery_status_s &bat = subscription_data->battery_status_sub.get();
+		const vehicle_gps_position_s &gps = subscription_data->vehicle_gps_position_sub.get();
+		const vehicle_global_position_s &gpos = subscription_data->vehicle_global_position_sub.get();
+		const vehicle_status_flags_s &vsflags = subscription_data->vehicle_status_flags_sub.get();
+		const vehicle_status_s &vs = subscription_data->vehicle_status_sub.get();
+		const vehicle_attitude_s &att = subscription_data->vehicle_attitude_sub.get();
+		//const vehicle_air_data_s &air_data = subscription_data->vehicle_air_data_sub.get();
+
+		//Disarmed
+		if (vsflags.condition_global_position_valid == 1 && vsflags.condition_home_position_valid == 1 && vsflags.condition_local_position_valid == 1 && vsflags.condition_local_velocity_valid == 1)
+		{
+			gps_status = 0b10000000; //GPS status READY
+			telemetryPayload.flightmode = 0x10;
+		}
+		else
+		{
+			gps_status = 0b00000000; //GPS status ACQUIRING
+			telemetryPayload.flightmode = 0x08;
+		}
+
+		//Armed
+		if (vs.arming_state == 2)
+		{
+			if(vs.nav_state == NAVIGATION_STATE_STAB) telemetryPayload.flightmode = 0x01;
+			if(vs.nav_state == NAVIGATION_STATE_ALTCTL) telemetryPayload.flightmode = 0x01;
+			if(vs.nav_state == NAVIGATION_STATE_POSCTL) telemetryPayload.flightmode = 0x03;
+			if(vs.nav_state == NAVIGATION_STATE_AUTO_MISSION || vs.nav_state ==  NAVIGATION_STATE_AUTO_LOITER) telemetryPayload.flightmode = 0x21;
+			if(vs.nav_state ==  NAVIGATION_STATE_AUTO_RTL) telemetryPayload.flightmode = 0x0d;
+			if(vs.nav_state == NAVIGATION_STATE_ACRO) telemetryPayload.flightmode = 0x14;
+			if(vs.nav_state == NAVIGATION_STATE_RATTITUDE) telemetryPayload.flightmode = 0x14;
+			if(vs.failsafe == true || vs.nav_state == NAVIGATION_STATE_AUTO_RCRECOVER || vs.nav_state == NAVIGATION_STATE_AUTO_RTGS || vs.nav_state == NAVIGATION_STATE_AUTO_LANDENGFAIL || vs.nav_state == NAVIGATION_STATE_AUTO_LANDGPSFAIL) telemetryPayload.flightmode = 0x0c;
+		}
+
+		//Emergency
+		if (vs.arming_state == 3) telemetryPayload.flightmode = 0x0c;
+
+		//Get pitch/roll/yaw values from the vehicle_attitude topic's quaternion
+		Quatf q(att.q);
+		Eulerf euler(q);
+
+		telemetryPayload.length = 0x26;
+		telemetryPayload.type = 0x02;
+		telemetryPayload.t = RCInput::counter;
+		telemetryPayload.lat = gps.lat;
+		telemetryPayload.lon = gps.lon;
+		//telemetryPayload.alt = roundf(frac(air_data.baro_alt_meter) * 100.0f);
+		telemetryPayload.alt = gps.alt * 0.1f;
+		telemetryPayload.vx = (int16_t)gpos.vel_n * 100.0f;
+		telemetryPayload.vy = (int16_t)gpos.vel_e * 100.0f;
+		telemetryPayload.vz = (int16_t)gpos.vel_d * 100.0f;
+		telemetryPayload.nsat = gps_status + (uint8_t)(gps.satellites_used);
+		telemetryPayload.voltage = (uint8_t)roundf((bat.voltage_v-5) * 10.0f);//    0x63; //hex
+		telemetryPayload.current = 0;
+		telemetryPayload.roll = (int16_t)euler.phi() * 100.0f;
+		telemetryPayload.pitch = (int16_t)euler.theta() * 100.0f;
+		telemetryPayload.yaw = (int16_t)euler.psi() * 100.0f;
+		telemetryPayload.motorStatus = 0xFF; //OK
+		telemetryPayload.gpsStatus = 0x61;
+		telemetryPayload.obsStatus = 0x55;
+		telemetryPayload.optionbytes = 0x05;
+		telemetryPayload.alarmbytes = 0x0000;
+		telemetryData.header1 =  0x55; //Header 1
+		telemetryData.header2 =  0x55; //Header 2
+		telemetryData.payload = telemetryPayload;
+		telemetryData.crc8 = st24_common_crc8((uint8_t*)&telemetryPayload, sizeof(telemetryPayload));
+
+		int packet_len = sizeof(telemetryData);
+
+		::write(uart_fd, (uint8_t*)&telemetryData, packet_len);
+
+	}
+	return 1;
+}
+
+
+
 
 using namespace time_literals;
 
-#if defined(SPEKTRUM_POWER)
-static bool bind_spektrum(int arg);
-#endif /* SPEKTRUM_POWER */
 
 work_s RCInput::_work = {};
-constexpr char const *RCInput::RC_SCAN_STRING[];
 
 RCInput::RCInput(bool run_as_task, char *device) :
 	_cycle_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": cycle time")),
@@ -75,10 +263,6 @@ RCInput::~RCInput()
 	dsm_deinit();
 #endif
 
-	if (_crsf_telemetry) {
-		delete (_crsf_telemetry);
-	}
-
 	perf_free(_cycle_perf);
 	perf_free(_publish_interval_perf);
 }
@@ -86,12 +270,6 @@ RCInput::~RCInput()
 int
 RCInput::init()
 {
-#ifdef RC_SERIAL_PORT
-
-#  ifdef RF_RADIO_POWER_CONTROL
-	// power radio on
-	RF_RADIO_POWER_CONTROL(true);
-#  endif
 
 	// dsm_init sets some file static variables and returns a file descriptor
 	_rcs_fd = dsm_init(_device);
@@ -100,19 +278,9 @@ RCInput::init()
 		return -errno;
 	}
 
-	if (board_rc_swap_rxtx(_device)) {
-		ioctl(_rcs_fd, TIOCSSWAP, SER_SWAP_ENABLED);
-	}
-
-	// assume SBUS input and immediately switch it to
-	// so that if Single wire mode on TX there will be only
-	// a short contention
-	sbus_config(_rcs_fd, board_rc_singlewire(_device));
-#  ifdef GPIO_PPM_IN
-	// disable CPPM input by mapping it away from the timer capture input
-	px4_arch_unconfiggpio(GPIO_PPM_IN);
-#  endif
-#endif
+	//Wait before uorb initialization
+	px4_usleep(1000000);
+	RCInput::uorb_init();
 
 	return 0;
 }
@@ -249,27 +417,8 @@ RCInput::fill_rc_in(uint16_t raw_rc_count_local,
 	_rc_in.rc_ppm_frame_length = 0;
 
 	/* fake rssi if no value was provided */
-	if (rssi == -1) {
 
-		/* set RSSI if analog RSSI input is present */
-		if (_analog_rc_rssi_stable) {
-			float rssi_analog = ((_analog_rc_rssi_volt - 0.2f) / 3.0f) * 100.0f;
-
-			if (rssi_analog > 100.0f) {
-				rssi_analog = 100.0f;
-			}
-
-			if (rssi_analog < 0.0f) {
-				rssi_analog = 0.0f;
-			}
-
-			_rc_in.rssi = rssi_analog;
-
-		} else {
-			_rc_in.rssi = 255;
-		}
-
-	} else {
+	{
 		_rc_in.rssi = rssi;
 	}
 
@@ -284,13 +433,6 @@ RCInput::fill_rc_in(uint16_t raw_rc_count_local,
 }
 
 #ifdef RC_SERIAL_PORT
-void RCInput::set_rc_scan_state(RC_SCAN newState)
-{
-//    PX4_WARN("RCscan: %s failed, trying %s", RCInput::RC_SCAN_STRING[_rc_scan_state], RCInput::RC_SCAN_STRING[newState]);
-	_rc_scan_begin = 0;
-	_rc_scan_state = newState;
-}
-
 void RCInput::rc_io_invert(bool invert)
 {
 	// First check if the board provides a board-specific inversion method (e.g. via GPIO),
@@ -311,7 +453,6 @@ RCInput::run()
 		exit_and_cleanup();
 		return;
 	}
-
 	cycle();
 }
 
@@ -324,77 +465,15 @@ RCInput::cycle()
 
 		const hrt_abstime cycle_timestamp = hrt_absolute_time();
 
-#if defined(SPEKTRUM_POWER)
-		/* vehicle command */
-		vehicle_command_s vcmd;
-
-		if (_vehicle_cmd_sub.update(&vcmd)) {
-			// Check for a pairing command
-			if ((unsigned int)vcmd.command == vehicle_command_s::VEHICLE_CMD_START_RX_PAIR) {
-				if (!_rc_scan_locked /* !_armed.armed */) { // TODO: add armed check?
-					if ((int)vcmd.param1 == 0) {
-						// DSM binding command
-						int dsm_bind_mode = (int)vcmd.param2;
-
-						int dsm_bind_pulses = 0;
-
-						if (dsm_bind_mode == 0) {
-							dsm_bind_pulses = DSM2_BIND_PULSES;
-
-						} else if (dsm_bind_mode == 1) {
-							dsm_bind_pulses = DSMX_BIND_PULSES;
-
-						} else {
-							dsm_bind_pulses = DSMX8_BIND_PULSES;
-						}
-
-						bind_spektrum(dsm_bind_pulses);
-					}
-
-				} else {
-					PX4_WARN("system armed, bind request rejected");
-				}
-			}
-		}
-
-#endif /* SPEKTRUM_POWER */
-
-		/* update ADC sampling */
-#ifdef ADC_RC_RSSI_CHANNEL
-		adc_report_s adc;
-
-		if (_adc_sub.update(&adc)) {
-			const unsigned adc_chans = sizeof(adc.channel_id) / sizeof(adc.channel_id[0]);
-
-			for (unsigned i = 0; i < adc_chans; i++) {
-				if (adc.channel_id[i] == ADC_RC_RSSI_CHANNEL) {
-
-					if (_analog_rc_rssi_volt < 0.0f) {
-						_analog_rc_rssi_volt = adc.channel_value[i];
-					}
-
-					_analog_rc_rssi_volt = _analog_rc_rssi_volt * 0.995f + adc.channel_value[i] * 0.005f;
-
-					/* only allow this to be used if we see a high RSSI once */
-					if (_analog_rc_rssi_volt > 2.5f) {
-						_analog_rc_rssi_stable = true;
-					}
-				}
-			}
-		}
-
-#endif /* ADC_RC_RSSI_CHANNEL */
 
 		bool rc_updated = false;
 
-#ifdef RC_SERIAL_PORT
 		// This block scans for a supported serial RC input and locks onto the first one found
 		// Scan for 300 msec, then switch protocol
 		constexpr hrt_abstime rc_scan_max = 300_ms;
 
-		bool sbus_failsafe, sbus_frame_drop;
 		unsigned frame_drops;
-		bool dsm_11_bit;
+		frame_drops = 0;
 
 		if (_report_lock && _rc_scan_locked) {
 			_report_lock = false;
@@ -415,72 +494,10 @@ RCInput::cycle()
 			newBytes = ::read(_rcs_fd, &_rcs_buf[0], SBUS_BUFFER_SIZE);
 		}
 
-		switch (_rc_scan_state) {
-		case RC_SCAN_SBUS:
-			if (_rc_scan_begin == 0) {
-				_rc_scan_begin = cycle_timestamp;
-				// Configure serial port for SBUS
-				sbus_config(_rcs_fd, board_rc_singlewire(_device));
-				rc_io_invert(true);
 
-			} else if (_rc_scan_locked
-				   || cycle_timestamp - _rc_scan_begin < rc_scan_max) {
 
-				// parse new data
-				if (newBytes > 0) {
-					rc_updated = sbus_parse(cycle_timestamp, &_rcs_buf[0], newBytes, &_raw_rc_values[0], &_raw_rc_count, &sbus_failsafe,
-								&sbus_frame_drop, &frame_drops, input_rc_s::RC_INPUT_MAX_CHANNELS);
+		{
 
-					if (rc_updated) {
-						// we have a new SBUS frame. Publish it.
-						_rc_in.input_source = input_rc_s::RC_INPUT_SOURCE_PX4FMU_SBUS;
-						fill_rc_in(_raw_rc_count, _raw_rc_values, cycle_timestamp,
-							   sbus_frame_drop, sbus_failsafe, frame_drops);
-						_rc_scan_locked = true;
-					}
-				}
-
-			} else {
-				// Scan the next protocol
-				set_rc_scan_state(RC_SCAN_DSM);
-			}
-
-			break;
-
-		case RC_SCAN_DSM:
-			if (_rc_scan_begin == 0) {
-				_rc_scan_begin = cycle_timestamp;
-				//			// Configure serial port for DSM
-				dsm_config(_rcs_fd);
-				rc_io_invert(false);
-
-			} else if (_rc_scan_locked
-				   || cycle_timestamp - _rc_scan_begin < rc_scan_max) {
-
-				if (newBytes > 0) {
-					int8_t dsm_rssi;
-
-					// parse new data
-					rc_updated = dsm_parse(cycle_timestamp, &_rcs_buf[0], newBytes, &_raw_rc_values[0], &_raw_rc_count,
-							       &dsm_11_bit, &frame_drops, &dsm_rssi, input_rc_s::RC_INPUT_MAX_CHANNELS);
-
-					if (rc_updated) {
-						// we have a new DSM frame. Publish it.
-						_rc_in.input_source = input_rc_s::RC_INPUT_SOURCE_PX4FMU_DSM;
-						fill_rc_in(_raw_rc_count, _raw_rc_values, cycle_timestamp,
-							   false, false, frame_drops, dsm_rssi);
-						_rc_scan_locked = true;
-					}
-				}
-
-			} else {
-				// Scan the next protocol
-				set_rc_scan_state(RC_SCAN_ST24);
-			}
-
-			break;
-
-		case RC_SCAN_ST24:
 			if (_rc_scan_begin == 0) {
 				_rc_scan_begin = cycle_timestamp;
 				// Configure serial port for DSM
@@ -524,150 +541,17 @@ RCInput::cycle()
 			} else {
 
 				st24_reset();
-				// Scan the next protocol
-				set_rc_scan_state(RC_SCAN_SUMD);
+
+				/*Used to restore RC link*/
+				_rc_scan_begin = 0;
+
 			}
 
-			break;
+			//Send telemetry packet
+			send_packet(_rcs_fd);
 
-		case RC_SCAN_SUMD:
-			if (_rc_scan_begin == 0) {
-				_rc_scan_begin = cycle_timestamp;
-				// Configure serial port for DSM
-				dsm_config(_rcs_fd);
-				rc_io_invert(false);
-
-			} else if (_rc_scan_locked
-				   || cycle_timestamp - _rc_scan_begin < rc_scan_max) {
-
-				if (newBytes > 0) {
-					// parse new data
-					uint8_t sumd_rssi, rx_count;
-					bool sumd_failsafe;
-
-					rc_updated = false;
-
-					for (unsigned i = 0; i < (unsigned)newBytes; i++) {
-						/* set updated flag if one complete packet was parsed */
-						sumd_rssi = RC_INPUT_RSSI_MAX;
-						rc_updated = (OK == sumd_decode(_rcs_buf[i], &sumd_rssi, &rx_count,
-										&_raw_rc_count, _raw_rc_values, input_rc_s::RC_INPUT_MAX_CHANNELS, &sumd_failsafe));
-					}
-
-					if (rc_updated) {
-						// we have a new SUMD frame. Publish it.
-						_rc_in.input_source = input_rc_s::RC_INPUT_SOURCE_PX4FMU_SUMD;
-						fill_rc_in(_raw_rc_count, _raw_rc_values, cycle_timestamp,
-							   false, sumd_failsafe, frame_drops, sumd_rssi);
-						_rc_scan_locked = true;
-					}
-				}
-
-			} else {
-				// Scan the next protocol
-				set_rc_scan_state(RC_SCAN_PPM);
-			}
-
-			break;
-
-		case RC_SCAN_PPM:
-			// skip PPM if it's not supported
-#ifdef HRT_PPM_CHANNEL
-			if (_rc_scan_begin == 0) {
-				_rc_scan_begin = cycle_timestamp;
-				// Configure timer input pin for CPPM
-				px4_arch_configgpio(GPIO_PPM_IN);
-				rc_io_invert(false);
-				ioctl(_rcs_fd, TIOCSINVERT, 0);
-
-			} else if (_rc_scan_locked || cycle_timestamp - _rc_scan_begin < rc_scan_max) {
-
-				// see if we have new PPM input data
-				if ((ppm_last_valid_decode != _rc_in.timestamp_last_signal) && ppm_decoded_channels > 3) {
-					// we have a new PPM frame. Publish it.
-					rc_updated = true;
-					_rc_in.input_source = input_rc_s::RC_INPUT_SOURCE_PX4FMU_PPM;
-					fill_rc_in(ppm_decoded_channels, ppm_buffer, cycle_timestamp, false, false, 0);
-					_rc_scan_locked = true;
-					_rc_in.rc_ppm_frame_length = ppm_frame_length;
-					_rc_in.timestamp_last_signal = ppm_last_valid_decode;
-				}
-
-			} else {
-				// disable CPPM input by mapping it away from the timer capture input
-				px4_arch_unconfiggpio(GPIO_PPM_IN);
-				// Scan the next protocol
-				set_rc_scan_state(RC_SCAN_CRSF);
-			}
-
-#else   // skip PPM if it's not supported
-			set_rc_scan_state(RC_SCAN_CRSF);
-
-#endif  // HRT_PPM_CHANNEL
-
-			break;
-
-		case RC_SCAN_CRSF:
-			if (_rc_scan_begin == 0) {
-				_rc_scan_begin = cycle_timestamp;
-				// Configure serial port for CRSF
-				crsf_config(_rcs_fd);
-				rc_io_invert(false);
-
-			} else if (_rc_scan_locked
-				   || cycle_timestamp - _rc_scan_begin < rc_scan_max) {
-
-				// parse new data
-				if (newBytes > 0) {
-					rc_updated = crsf_parse(cycle_timestamp, &_rcs_buf[0], newBytes, &_raw_rc_values[0], &_raw_rc_count,
-								input_rc_s::RC_INPUT_MAX_CHANNELS);
-
-					if (rc_updated) {
-						// we have a new CRSF frame. Publish it.
-						_rc_in.input_source = input_rc_s::RC_INPUT_SOURCE_PX4FMU_CRSF;
-						fill_rc_in(_raw_rc_count, _raw_rc_values, cycle_timestamp, false, false, 0);
-
-						// Enable CRSF Telemetry only on the Omnibus, because on Pixhawk (-related) boards
-						// we cannot write to the RC UART
-						// It might work on FMU-v5. Or another option is to use a different UART port
-#ifdef CONFIG_ARCH_BOARD_OMNIBUS_F4SD
-
-						if (!_rc_scan_locked && !_crsf_telemetry) {
-							_crsf_telemetry = new CRSFTelemetry(_rcs_fd);
-						}
-
-#endif /* CONFIG_ARCH_BOARD_OMNIBUS_F4SD */
-
-						_rc_scan_locked = true;
-
-						if (_crsf_telemetry) {
-							_crsf_telemetry->update(cycle_timestamp);
-						}
-					}
-				}
-
-			} else {
-				// Scan the next protocol
-				set_rc_scan_state(RC_SCAN_SBUS);
-			}
-
-			break;
 		}
 
-#else  // RC_SERIAL_PORT not defined
-#ifdef HRT_PPM_CHANNEL
-
-		// see if we have new PPM input data
-		if ((ppm_last_valid_decode != _rc_in.timestamp_last_signal) && ppm_decoded_channels > 3) {
-			// we have a new PPM frame. Publish it.
-			rc_updated = true;
-			fill_rc_in(ppm_decoded_channels, ppm_buffer, cycle_timestamp, false, false, 0);
-			_rc_in.rc_ppm_frame_length = ppm_frame_length;
-			_rc_in.timestamp_last_signal = ppm_last_valid_decode;
-		}
-
-#endif  // HRT_PPM_CHANNEL
-#endif  // RC_SERIAL_PORT
 
 		perf_end(_cycle_perf);
 
@@ -687,6 +571,10 @@ RCInput::cycle()
 
 		} else {
 			if (should_exit()) {
+
+				//Is this needed //TR
+				RCInput::uorb_deinit();
+
 				exit_and_cleanup();
 
 			} else {
@@ -699,46 +587,6 @@ RCInput::cycle()
 	}
 }
 
-#if defined(SPEKTRUM_POWER)
-bool bind_spektrum(int arg)
-{
-	int ret = PX4_ERROR;
-
-	/* specify 11ms DSMX. RX will automatically fall back to 22ms or DSM2 if necessary */
-
-	/* only allow DSM2, DSM-X and DSM-X with more than 7 channels */
-	PX4_INFO("DSM_BIND_START: DSM%s RX", (arg == 0) ? "2" : ((arg == 1) ? "-X" : "-X8"));
-
-	if (arg == DSM2_BIND_PULSES ||
-	    arg == DSMX_BIND_PULSES ||
-	    arg == DSMX8_BIND_PULSES) {
-
-		dsm_bind(DSM_CMD_BIND_POWER_DOWN, 0);
-
-		dsm_bind(DSM_CMD_BIND_SET_RX_OUT, 0);
-		usleep(500000);
-
-		dsm_bind(DSM_CMD_BIND_POWER_UP, 0);
-		usleep(72000);
-
-		irqstate_t flags = px4_enter_critical_section();
-		dsm_bind(DSM_CMD_BIND_SEND_PULSES, arg);
-		px4_leave_critical_section(flags);
-
-		usleep(50000);
-
-		dsm_bind(DSM_CMD_BIND_REINIT_UART, 0);
-
-		ret = OK;
-
-	} else {
-		PX4_ERR("DSM bind failed");
-		ret = -EINVAL;
-	}
-
-	return (ret == PX4_OK);
-}
-#endif /* SPEKTRUM_POWER */
 
 RCInput *RCInput::instantiate(int argc, char *argv[])
 {
@@ -748,15 +596,6 @@ RCInput *RCInput::instantiate(int argc, char *argv[])
 
 int RCInput::custom_command(int argc, char *argv[])
 {
-#if defined(SPEKTRUM_POWER)
-	const char *verb = argv[0];
-
-	if (!strcmp(verb, "bind")) {
-		bind_spektrum(DSMX8_BIND_PULSES);
-		return 0;
-	}
-
-#endif /* SPEKTRUM_POWER */
 
 	/* start the FMU if not running */
 	if (!is_running()) {
@@ -779,13 +618,7 @@ int RCInput::print_usage(const char *reason)
 	PRINT_MODULE_DESCRIPTION(
 		R"DESCR_STR(
 ### Description
-This module does the RC input parsing and auto-selecting the method. Supported methods are:
-- PPM
-- SBUS
-- DSM
-- SUMD
-- ST24
-- TBS Crossfire (CRSF)
+Typhoon H RC input driver with telemetry support, based on PX4's rc_input driver.
 
 ### Implementation
 By default the module runs on the work queue, to reduce RAM usage. It can also be run in its own thread,
@@ -797,10 +630,6 @@ When running on the work queue, it schedules at a fixed frequency.
 	PRINT_MODULE_USAGE_COMMAND_DESCR("start", "Start the task (without any mode set, use any of the mode_* cmds)");
 	PRINT_MODULE_USAGE_PARAM_FLAG('t', "Run as separate task instead of the work queue", true);
 	PRINT_MODULE_USAGE_PARAM_STRING('d', "/dev/ttyS3", "<file:dev>", "RC device", true);
-
-#if defined(SPEKTRUM_POWER)
-	PRINT_MODULE_USAGE_COMMAND_DESCR("bind", "Send a DSM bind command (module must be running)");
-#endif /* SPEKTRUM_POWER */
 
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 
@@ -817,14 +646,6 @@ int RCInput::print_status()
 	if (_device[0] != '\0') {
 		PX4_INFO("Serial device: %s", _device);
 	}
-
-	PX4_INFO("RC scan state: %s, locked: %s", RC_SCAN_STRING[_rc_scan_state], _rc_scan_locked ? "yes" : "no");
-	PX4_INFO("CRSF Telemetry: %s", _crsf_telemetry ? "yes" : "no");
-	PX4_INFO("SBUS frame drops: %u", sbus_dropped_frames());
-
-#if ADC_RC_RSSI_CHANNEL
-        PX4_INFO("vrssi: %dmV", (int)(_analog_rc_rssi_volt * 1000.0f));
-#endif
 
 	perf_print_counter(_cycle_perf);
 	perf_print_counter(_publish_interval_perf);
