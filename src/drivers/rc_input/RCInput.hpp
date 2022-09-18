@@ -125,7 +125,7 @@ public:
 		int16_t roll, pitch, yaw; ///< 0.01 degree resolution
 		uint8_t motorStatus;    ///< 1 bit per motor for status 1=good, 0= fail
 
-		uint8_t gpsStatus;    ///< gps and obs status
+		uint8_t gpsStatus;    ///< gps and obs status   IMU_status
 		/* Example: 0x61
 		* 0x[X]Y
 		* 0001 yyyy = gps disabled, obs rdy
@@ -140,7 +140,7 @@ public:
 		* xxxx 1000 = none
 		*/
 
-		uint8_t obsStatus; ///< obs_avoidance | unknown
+		uint8_t obsStatus; ///< obs_avoidance | unknown   pressure_compass_status
 		/* Example: 0x55
 		* 0x[X]Y
 		* 0001 yyyy = obs avoidance fail
