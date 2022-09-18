@@ -173,7 +173,7 @@ int RCInput::send_packet(int uart_fd)
 		//Armed
 		if (vs.arming_state == 2)
 		{
-			if(vs.nav_state == NAVIGATION_STATE_STAB) telemetryPayload.flightmode = 0x01;
+			if(vs.nav_state == NAVIGATION_STATE_STAB) telemetryPayload.flightmode = 0x00;
 			if(vs.nav_state == NAVIGATION_STATE_ALTCTL) telemetryPayload.flightmode = 0x01;
 			if(vs.nav_state == NAVIGATION_STATE_POSCTL) telemetryPayload.flightmode = 0x03;
 			if(vs.nav_state == NAVIGATION_STATE_AUTO_MISSION || vs.nav_state ==  NAVIGATION_STATE_AUTO_LOITER) telemetryPayload.flightmode = 0x21;
@@ -195,8 +195,8 @@ int RCInput::send_packet(int uart_fd)
 		telemetryPayload.t = RCInput::counter;
 		telemetryPayload.lat = gps.lat;
 		telemetryPayload.lon = gps.lon;
-		//telemetryPayload.alt = roundf(frac(air_data.baro_alt_meter) * 100.0f);
-		telemetryPayload.alt = gps.alt * 0.1f;
+		telemetryPayload.alt = roundf(frac(air_data.baro_alt_meter) * 100.0f);
+		//telemetryPayload.alt = gps.alt * 0.1f;
 		telemetryPayload.vx = (int16_t)gpos.vel_n * 100.0f;
 		telemetryPayload.vy = (int16_t)gpos.vel_e * 100.0f;
 		telemetryPayload.vz = (int16_t)gpos.vel_d * 100.0f;
