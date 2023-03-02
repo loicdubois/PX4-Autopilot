@@ -156,7 +156,7 @@ int RCInput::send_packet(int uart_fd)
 		const vehicle_status_flags_s &vsflags = subscription_data->vehicle_status_flags_sub.get();
 		const vehicle_status_s &vs = subscription_data->vehicle_status_sub.get();
 		const vehicle_attitude_s &att = subscription_data->vehicle_attitude_sub.get();
-		//const vehicle_air_data_s &air_data = subscription_data->vehicle_air_data_sub.get();
+		const vehicle_air_data_s &air_data = subscription_data->vehicle_air_data_sub.get();  // HE: Uncommented to get baro altitude back to telemetry
 
 		//Disarmed
 		if (vsflags.condition_global_position_valid == 1 && vsflags.condition_home_position_valid == 1 && vsflags.condition_local_position_valid == 1 && vsflags.condition_local_velocity_valid == 1)
@@ -195,8 +195,8 @@ int RCInput::send_packet(int uart_fd)
 		telemetryPayload.t = RCInput::counter;
 		telemetryPayload.lat = gps.lat;
 		telemetryPayload.lon = gps.lon;
-		telemetryPayload.alt = roundf(frac(air_data.baro_alt_meter) * 100.0f);
-		//telemetryPayload.alt = gps.alt * 0.1f;
+		telemetryPayload.alt = roundf(frac(air_data.baro_alt_meter) * 100.0f);   // HE: Uncommented to get baro altitude
+		// HE: line removed - telemetryPayload.alt = gps.alt * 0.1f;                                 
 		telemetryPayload.vx = (int16_t)gpos.vel_n * 100.0f;
 		telemetryPayload.vy = (int16_t)gpos.vel_e * 100.0f;
 		telemetryPayload.vz = (int16_t)gpos.vel_d * 100.0f;
