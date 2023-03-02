@@ -173,7 +173,7 @@ int RCInput::send_packet(int uart_fd)
 		//Armed
 		if (vs.arming_state == 2)
 		{
-			if(vs.nav_state == NAVIGATION_STATE_STAB) telemetryPayload.flightmode = 0x00;
+			if(vs.nav_state == NAVIGATION_STATE_STAB) telemetryPayload.flightmode = 0x00;    //HE: Mode number in telemetry corrected
 			if(vs.nav_state == NAVIGATION_STATE_ALTCTL) telemetryPayload.flightmode = 0x01;
 			if(vs.nav_state == NAVIGATION_STATE_POSCTL) telemetryPayload.flightmode = 0x03;
 			if(vs.nav_state == NAVIGATION_STATE_AUTO_MISSION || vs.nav_state ==  NAVIGATION_STATE_AUTO_LOITER) telemetryPayload.flightmode = 0x21;
