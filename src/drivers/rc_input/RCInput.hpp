@@ -55,6 +55,11 @@
 #include <uORB/topics/input_rc.h>
 #include <uORB/topics/vehicle_command.h>
 
+#include "crsf_telemetry.h"
+
+#ifdef HRT_PPM_CHANNEL
+# include <systemlib/ppm_decode.h>
+#endif
 
 class RCInput : public ModuleBase<RCInput>
 {
@@ -245,7 +250,7 @@ public:
 		* xxxx 0100 = motor failsafe mode  (five rotor mode)
 		* xxxx 1000 = complete motor ESC failure
 		*/
-		
+
 		uint8_t gps_acc;    ///<  GPSacc_H   GPS Horizontal accracy * 20
 		/*
 		* maximum 200 for no GPS fix
@@ -262,6 +267,23 @@ public:
 	#pragma pack(pop)
 
 private:
+	enum RC_SCAN {
+		RC_SCAN_PPM = 0,
+		RC_SCAN_SBUS,
+		RC_SCAN_DSM,
+		RC_SCAN_SUMD,
+		RC_SCAN_ST24,
+		RC_SCAN_CRSF
+	} _rc_scan_state{RC_SCAN_SBUS};
+
+	static constexpr char const *RC_SCAN_STRING[6] {
+		"PPM",
+		"SBUS",
+		"DSM",
+		"SUMD",
+		"ST24",
+		"CRSF"
+	};
 
 	hrt_abstime _rc_scan_begin{0};
 
@@ -292,6 +314,8 @@ private:
 	uint16_t _raw_rc_values[input_rc_s::RC_INPUT_MAX_CHANNELS] {};
 	uint16_t _raw_rc_count{};
 
+	CRSFTelemetry *_crsf_telemetry{nullptr};
+
 	perf_counter_t      _cycle_perf;
 	perf_counter_t      _publish_interval_perf;
 
@@ -303,6 +327,8 @@ private:
 			uint16_t raw_rc_values_local[input_rc_s::RC_INPUT_MAX_CHANNELS],
 			hrt_abstime now, bool frame_drop, bool failsafe,
 			unsigned frame_drops, int rssi);
+
+	void set_rc_scan_state(RC_SCAN _rc_scan_state);
 
 	void rc_io_invert(bool invert);
 
