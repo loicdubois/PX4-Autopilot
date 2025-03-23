@@ -1,3 +1,4 @@
-rm yuneec_typhoon_h.fw
-python px_mkfw.py --image build/yuneec_typhoon_h_default/yuneec_typhoon_h.bin --board_id 42 --board_revision 1 --summary TyphoonH >> yuneec_typhoon_h.fw
-python px_uploader.py --port /dev/ttyACM0 --force yuneec_typhoon_h.fw
+rm build/yuneec_typhoon_h_default/yuneec_typhoon_h.fw
+make yuneec_typhoon_h
+python Tools/px_mkfw.py --image build/yuneec_typhoon_h_default/yuneec_typhoon_h.bin --board_id 42 --board_revision 1 --summary TyphoonH >> build/yuneec_typhoon_h_default/yuneec_typhoon_h.fw
+python Tools/px_uploader.py --port /dev/ttyACM0 --force build/yuneec_typhoon_h_default/yuneec_typhoon_h.fw
